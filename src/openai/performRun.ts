@@ -1,21 +1,23 @@
 import OpenAI from "openai";
-import { Thread } from "openai/resources/beta/threads/threads.mjs";
-import { Run } from "openai/resources/beta/threads/runs/runs.mjs";
-import { handleRunToolCall } from "./handleRunToolCall";
+import { Thread } from "openai/resources/beta/threads/threads";
+import { Run } from "openai/resources/beta/threads/runs/runs";
+import { handleRunToolCalls } from "./handleRunToolCalls.js";
 
 export async function performRun(run: Run, client: OpenAI, thread: Thread) {
+
+    console.log(`🚀 Performing run ${run.id}`);
+
     while (run.status === "requires_action") {
-        run = await handleRunToolCall(run, client, thread);
+        run = await handleRunToolCalls(run, client, thread);
     }
 
-    if (run.status === "failed") {
-        const errorMessage = `I encountered an error: ${run.last_error?.message || "Unknown error"}`;
-        console.error('Runfailed:', run.last_error);
+    if (run.status === 'failed') {
+        const errorMessage = `I encountered an error: ${run.last_error?.message || 'Unknown error'}`;
+        console.error('Run failed:', run.last_error);
         await client.beta.threads.messages.create(thread.id, {
-            role: "assistant",
-            content: errorMessage,
+            role: 'assistant',
+            content: errorMessage
         });
-
         return {
             type: 'text',
             text: {
@@ -26,13 +28,10 @@ export async function performRun(run: Run, client: OpenAI, thread: Thread) {
     }
 
     const messages = await client.beta.threads.messages.list(thread.id);
-    const assistantMessage = messages.data.find(message => message.role === "assistant");
+    const assistantMessage = messages.data.find(message => message.role === 'assistant');
 
-    return assistantMessage?.content[0] || {
-        type: 'text',
-        text: {
-            value: "No response from assistant.",
-            annotations: []
-        }   
-    };
+    console.log(`🚀 Assistant message: ${assistantMessage?.content[0]}`);
+
+    return assistantMessage?.content[0] ||
+        { type: 'text', text: { value: 'No response from assistant', annotations: [] } };
 }

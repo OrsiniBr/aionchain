@@ -1,10 +1,12 @@
 import OpenAI from "openai";
-import { Run } from "openai/resources/beta/threads/runs/runs.mjs";
-import { Thread } from "openai/resources/beta/threads/threads.mjs";
-import { tools } from "../tools/allTools";
+import { Run } from "openai/resources/beta/threads/runs/runs";
+import { Thread } from "openai/resources/beta/threads/threads";
+import { tools } from '../tools/allTools.js';
 
+export async function handleRunToolCalls(run: Run, client: OpenAI, thread: Thread): Promise<Run> {
 
-export async function handleRunToolCall(run: Run, client: OpenAI, thread: Thread): Promise<Run> {
+    console.log(`💾 Handling tool calls for run ${run.id}`);
+
     const toolCalls = run.required_action?.submit_tool_outputs?.tool_calls;
     if (!toolCalls) return run;
 
@@ -12,9 +14,12 @@ export async function handleRunToolCall(run: Run, client: OpenAI, thread: Thread
         toolCalls.map(async (tool) => {
             const toolConfig = tools[tool.function.name];
             if (!toolConfig) {
-                console.error(`Tool ${tool.function.name} not found.`);
+                console.error(`Tool ${tool.function.name} not found`);
                 return null;
             }
+
+            console.log(`💾 Executing: ${tool.function.name}`);
+
             try {
                 const args = JSON.parse(tool.function.arguments);
                 const output = await toolConfig.handler(args);
@@ -27,20 +32,17 @@ export async function handleRunToolCall(run: Run, client: OpenAI, thread: Thread
                 return {
                     tool_call_id: tool.id,
                     output: `Error: ${errorMessage}`
-                }
+                };
             }
         })
     );
 
     const validOutputs = toolOutputs.filter(Boolean) as OpenAI.Beta.Threads.Runs.RunSubmitToolOutputsParams.ToolOutput[];
-    if (validOutputs.length > 0) return run;
+    if (validOutputs.length === 0) return run;
+
     return client.beta.threads.runs.submitToolOutputsAndPoll(
         thread.id,
         run.id,
-        {
-            tool_outputs: validOutputs
-        }
+        { tool_outputs: validOutputs }
     );
-
-   
 }
